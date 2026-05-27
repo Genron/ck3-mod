@@ -15,61 +15,24 @@
     notification_text = CALL_HOUSE_MEMBER_NOTIFICATION
 
     is_shown = {
-        # scope:recipient != scope:actor
-
         scope:actor = {
             # must not be at war with recipient
-            NOT = {
-                is_at_war_with = scope:recipient
-            }
+            NOT = { is_at_war_with = scope:recipient }
             # if actor is primary defender of religious war and the recipient is of same fait
-            trigger_if = {
-                limit = {
-                    # is_religious_war = yes # using_non_ghw_holy_war_cb_trigger
-                    is_at_war_as_defender = yes
-                    has_faith = scope:recipient.faith # has_faith = faith:baltic_pagan
-                    NOT = { has_trait = excommunicated }
-                }
-                any_character_war = {
-                    using_holy_war_cb_trigger = yes
-                    # using_non_ghw_holy_war_cb_trigger = yes # if without crusades
-                    primary_defender = scope:actor
-                }
+            # is_religious_war = yes # using_non_ghw_holy_war_cb_trigger
+            is_at_war_as_defender = yes
+            has_faith = scope:recipient.faith # has_faith = faith:baltic_pagan
+            NOT = { has_trait = excommunicated }
+            any_character_war = {
+                using_holy_war_cb_trigger = yes
+                # using_non_ghw_holy_war_cb_trigger = yes # if without crusades
+                primary_defender = scope:actor
             }
-
-            # OR = {
-            #     is_house_head = yes
-            #     AND = {
-            #         exists = dynasty
-            #         # DLC checking
-            #         has_fp2_dlc_trigger = yes
-            #         # Standard check
-            #         dynasty = { has_dynasty_perk = fp2_coterie_legacy_3 }
-            #     }
-            # }
-            # religion = scope:recipient.religion
-            # house = scope:recipient.house
-            # any_character_war = {
-            #     is_war_leader = scope:actor
-            # }
         }
-
-
-
-        # scope:recipient = {
-        #     is_playable_character = yes
-        # }
-        #
-        # scope:recipient = {
-        #     NOT = {
-        #         any_character_war = {
-        #             using_holy_war_cb_trigger = yes
-        #             # using_non_ghw_holy_war_cb_trigger = yes # if without crusades
-        #             primary_defender = scope:actor
-        #         }
-        #         target_is_liege_or_above = scope:actor
-        #     }
-        # }
+        scope:recipient = {
+            has_faith = scope:actor.faith # has_faith = faith:baltic_pagan
+            NOT = { has_trait = excommunicated }
+        }
     }
 
     has_valid_target = {
@@ -115,10 +78,10 @@
     }
 
     on_accept = {
-        call_same_faith_to_war_interaction_effect = yes
+        call_house_member_to_war_interaction_effect = yes
 
         save_scope_value_as = {
-            name = call_same_faith_to_war_interaction
+            name = call_house_member_to_war_interaction
             value = yes
         }
 
