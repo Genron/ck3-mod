@@ -1,23 +1,33 @@
 ﻿
 ##################################################
 # Request Contract Assistance
-# by Maxence Voleau
+# by genron
 ##################################################
 
-call_same_faith_to_war_interaction = {
+# ideas for improvement
+# if piety_level < 1 -> gain piety level motivation for ai
+# multiply cost per called ally
+# disable action on disgraces
+# disable actionon negative piety
+# upon fighting gain trait maybe? faith_warrior
+# all knights? acclaimed knights? accolades?
+# use hook
+# move has_pending_interaction_of_type to cahcacter interaction
+
+cfa_call_same_faith_to_war_interaction = {
     category = interaction_category_diplomacy
     icon = religious
 
     interface_priority = 15
-    desc = call_same_faith_to_war_interaction_desc
+    desc = cfa_call_same_faith_to_war_interaction_desc
 
-    interface = call_ally
     common_interaction = yes
+    interface = call_ally
     special_interaction = call_ally_interaction
     popup_on_receive = yes
     pause_on_receive = yes
 
-    notification_text = call_same_faith_to_war_interaction_notification
+    notification_text = cfa_call_same_faith_to_war_interaction_notification
 
     ai_maybe = yes
     greeting = positive
@@ -30,7 +40,6 @@ call_same_faith_to_war_interaction = {
             NOR = {
                 this = scope:recipient
                 is_at_war_with = scope:recipient # must not be at war with recipient
-                has_trait = excommunicated
                 is_allied_to = scope:recipient
             }
             is_at_war_as_defender = yes
@@ -39,7 +48,6 @@ call_same_faith_to_war_interaction = {
         # recipient condition
         scope:recipient = {
             has_faith = scope:actor.faith
-            NOT = { has_trait = excommunicated }
         }
         # war condition
         scope:actor = {
@@ -93,11 +101,8 @@ call_same_faith_to_war_interaction = {
         }
     }
 
+    # defines, if the interaction can be selected from character interaction menu
     is_valid_showing_failures_only = {
-        scope:recipient = {
-            # Cannot demand gold from allies
-            NOT = { is_allied_to = scope:actor }
-        }
         # Actor is not in (any) war against Recipient's liege(s)
         trigger_if = {
             limit = { exists = scope:recipient.liege }
@@ -112,65 +117,71 @@ call_same_faith_to_war_interaction = {
             }
         }
 
-        # Cannot join wars with raised armies
-        scope:recipient = { has_raised_armies = no }
-
-        # Can only contract one war at a time
         custom_tooltip = {
-            text = contract_assistance_war_already_contracted_tt
-            scope:recipient = {
-                NOT = { has_variable = owed_contract_assistance_war }
+            text = cfa_negative_piety
+
+            scope:actor = {
+                piety > 0
+            }
+        }
+
+        scope:actor = {
+            piety_level >= 1
+            NOT = {
+                has_trait = excommunicated
+            }
+        }
+        scope:recipient = {
+            NOT = { has_trait = excommunicated }
+        }
+
+        # Cannot join wars with raised armies
+        # todo do i want that?
+        # scope:recipient = { has_raised_armies = no }
+    }
+
+    # if i'm able to send the request
+    can_send = {
+        scope:actor = {
+            custom_description = { # Exploit prevention
+                text = "has_sent_interaction_already"
+                NOT = { has_pending_interaction_of_type = cfa_call_same_faith_to_war_interaction }
             }
         }
     }
 
+    # defines, if the war can be selected from the war list
     can_be_picked = {
         # Recipient is war leader in chosen war
         scope:target = {
-            is_war_leader = scope:actor
+            # is_war_leader = scope:actor
             # not already in target war
             custom_description = {
-                text = join_war_interaction_already_in_target_war
-                NOR = {
-                    any_war_attacker = { this = scope:recipient }
-                    any_war_defender = { this = scope:recipient }
-                }
+                # text = join_war_interaction_already_in_target_war
+                text = cfa_not_using_holy_war_cb
+                using_holy_war_cb_trigger = yes
             }
         }
-        # Liege checks
-        can_join_war_liege_vassal_check_trigger = { WARRIOR = scope:actor JOINER = scope:recipient }
     }
 
     on_accept = {
-        # Add Actor to Recipient's war
-        scope:target = {
-            hidden_effect = { set_called_to = scope:recipient }
-            if = {
-                limit = { is_attacker = scope:actor }
-                add_attacker = scope:recipient
-            }
-            else = { add_defender = scope:recipient }
-        }
-        # Actor effects
+        # So that we can show a tooltip in the event about them responding
+        # adds recipient to the current war
+        call_ally_interaction_effect = yes
+
+        # recipient effects
         scope:recipient = {
-            save_scope_as = contract_assistance_helper
-            set_variable = {
-                name = owed_contract_assistance_war
-                value = scope:target
-            }
-            set_variable = {
-                name = owed_contract_assistance_contribution
-                value = offer_assistance_interaction_war_contribution_value
-            }
-            set_variable = {
-                name = owed_contract_assistance_gold
-                value = offer_assistance_interaction_gold_value
-            }
             stress_impact = {
                 craven = medium_stress_impact_gain
                 shy = minor_stress_impact_gain
-            }
 
+                cynical = medium_stress_impact_gain
+                zealous = medium_stress_impact_loss
+            }
+            add_piety = offer_assistance_interaction_piety_value
+            ordered_active_accolade = {
+                accolade_parameter = acclaimed_knight_piety_from_battle
+            }
 
             # Struggle Catalyst
             if = {
@@ -199,23 +210,17 @@ call_same_faith_to_war_interaction = {
                 }
             }
         }
-        # Recipient effects
+        # actor effects
         scope:actor = {
             stress_impact = {
                 greedy = medium_stress_impact_gain
                 arrogant = medium_stress_impact_gain
             }
-            custom_description_no_bullet = {
-                text = contract_assistance_interaction_condition_tt
-                subject = scope:actor
-                object = scope:recipient
+            add_piety = {
+                value = offer_assistance_interaction_piety_value
+                multiply = -1
             }
-            show_as_tooltip = {
-                pay_short_term_gold = {
-                    target = scope:recipient
-                    gold = offer_assistance_interaction_gold_value
-                }
-            }
+            trigger_event = call_ally.0100
         }
 
         # If we're a clan this interaction affects unity
@@ -229,8 +234,35 @@ call_same_faith_to_war_interaction = {
     }
 
     on_decline = {
+        scope:target = {
+            hidden_effect = {
+                if = {
+                    limit = {
+                        NOT = { was_called = scope:recipient }
+                    }
+                    set_called_to = scope:recipient
+                }
+            }
+        }
+
         # Refusal notification
-        scope:actor = { trigger_event = char_interaction.0236 }
+        scope:actor = {
+            add_opinion = {
+                modifier = rejected_call_to_defensive_war
+                target = scope:recipient
+            }
+
+            trigger_event = char_interaction.0236 # todo
+            # trigger_event = call_ally.0101
+        }
+
+        scope:recipient = {
+            # add_piety = {
+            #     value = offer_assistance_interaction_piety_value
+            #     multiply = -1
+            # }
+            add_piety_level = -1
+        }
 
         # If we're a clan this interaction affects unity
         add_clan_unity_interaction_effect = {
@@ -242,8 +274,14 @@ call_same_faith_to_war_interaction = {
         }
     }
 
+    auto_accept = {
+        scope:recipient = {
+            has_trait = zealous
+        }
+    }
+
     ai_accept = {
-        base = 0 # Reluctant to spend money without good reason
+        base = 25 # Reluctant to spend money without good reason
 
         # Recipient has low cash
         modifier = {
@@ -251,7 +289,7 @@ call_same_faith_to_war_interaction = {
                 value = 25
                 if = {
                     limit = {
-                        gold < 0
+                        piety < 0
                     }
                     add = {
                         value = 25
@@ -267,17 +305,37 @@ call_same_faith_to_war_interaction = {
                     }
                     multiply = 0.5
                 }
+                if = {
+                    limit = {
+                        ai_greed <= 0.5
+                    }
+                    add = {
+                        value = ai_greed
+                        multiply = 0.2
+                    }
+                }
             }
-            desc = AI_VALUE_MODIFIER_GREED
+            desc = CFA_AI_GAINS_PIETY_REASON
         }
-        # Recipient has a lot of cash
+        modifier = {
+            add = 50
+            has_trait = zealous
+            desc = AI_VALUE_MODIFIER_ZEAL
+        }
+        modifier = {
+            add = -50
+            has_trait = cynical
+            desc = AI_VALUE_MODIFIER_CYNICISM
+        }
+        # Recipient has a lot of piety
+        # todo: take zealot into consideration
         modifier = {
             add = {
                 value = -25
                 if = {
                     limit = {
-                        gold >= {
-                            value = offer_assistance_interaction_gold_value
+                        piety >= {
+                            value = offer_assistance_interaction_piety_value
                             multiply = 2
                         }
                     }
@@ -285,16 +343,16 @@ call_same_faith_to_war_interaction = {
                 }
                 if = {
                     limit = {
-                        gold >= {
-                            value = offer_assistance_interaction_gold_value
+                        piety >= {
+                            value = offer_assistance_interaction_piety_value
                             multiply = 3
                         }
                     }
                     add = -50
                 }
             }
-            gold >= offer_assistance_interaction_gold_value
-            desc = OA_AI_EXTRA_GOLD_REASON
+            piety >= offer_assistance_interaction_piety_value
+            desc = CFA_OA_AI_EXTRA_PIETY_REASON # todo: reason to decline?
         }
         # Recipient is not interested in help for certain wars
         modifier = {
@@ -328,16 +386,6 @@ call_same_faith_to_war_interaction = {
             multiplier = 0.25
             desc = AI_OPINION_REASON
         }
-
-        modifier = {
-            add = {
-                value = ai_greed
-                multiply = 0.2
-            }
-            ai_greed <= 0.5
-            desc = AI_VALUE_MODIFIER_GREED
-        }
-
         modifier = {
             add = {
                 value = ai_boldness
@@ -358,7 +406,7 @@ call_same_faith_to_war_interaction = {
         # the AI cannot use it for now so let's block it
         is_imprisoned = no
         is_at_war = no
-        gold >= ai_war_chest_desired_gold_value
+        piety >= cfa_claim_piety_value
     }
     ai_target_quick_trigger = { adult = yes }
     ai_targets = {
@@ -466,7 +514,7 @@ call_same_faith_to_war_interaction = {
         }
 
         modifier = { # AI is extremely rich
-            short_term_gold >= ai_war_chest_desired_gold_value
+            piety >= cfa_claim_piety_value
             add = 50
         }
     }

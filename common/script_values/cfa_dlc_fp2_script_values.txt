@@ -1,0 +1,26 @@
+﻿
+##################################################
+# Interactions
+
+# miniscule_piety_value = 25
+# minor_piety_value = 50
+# medium_piety_value = 100
+# major_piety_value = 250
+# massive_piety_value = 500
+# monumental_piety_value = 1000
+offer_assistance_interaction_piety_value = {
+    value = scope:recipient.current_military_strength
+    # round fraction to 10s
+    divide = 35
+    round = yes
+    multiply = 10
+    min = 100
+    max = 2000
+}
+
+cfa_claim_piety_value = {
+    value = scriptedtests_piety_income
+    multiply = 3
+    min = 100
+    max = 2000
+}
