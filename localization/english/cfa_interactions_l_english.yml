@@ -1,0 +1,8 @@
+﻿l_english:
+ cfa_call_same_faith_to_war_interaction:0 "Request Aid in Holy War"
+ cfa_call_same_faith_to_war_interaction_desc:0 "Our cause is just, but it will not be won by piety alone. We must call upon our brethren to take up arms beside us."
+ cfa_call_same_faith_to_war_interaction_notification:0 "A Call to Arms"
+ cfa_not_using_holy_war_cb:0 "Only religious wars are eligible for selection"
+ CFA_OA_AI_EXTRA_PIETY_REASON:0 "[recipient.GetShortUIName|U] has [piety|E] to spend: $VALUE|=+0$"
+ CFA_AI_GAINS_PIETY_REASON:0 "[recipient.GetShortUIName|U] gains [piety|E]: $VALUE|=+0$"
+ cfa_negative_piety:0 "No piety to spend"

@@ -1,0 +1,7 @@
+﻿cfa_not_using_holy_war_cb = {
+    third_not = cfa_not_using_holy_war_cb
+}
+
+cfa_not_enough_piety = {
+    third_not = cfa_negative_piety
+}

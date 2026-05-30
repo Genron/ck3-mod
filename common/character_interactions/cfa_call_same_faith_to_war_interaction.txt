@@ -1,0 +1,521 @@
+﻿
+##################################################
+# Request Contract Assistance
+# by genron
+##################################################
+
+# ideas for improvement
+# if piety_level < 1 -> gain piety level motivation for ai
+# multiply cost per called ally
+# disable action on disgraces
+# disable actionon negative piety
+# upon fighting gain trait maybe? faith_warrior
+# all knights? acclaimed knights? accolades?
+# use hook
+# move has_pending_interaction_of_type to cahcacter interaction
+
+cfa_call_same_faith_to_war_interaction = {
+    category = interaction_category_diplomacy
+    icon = religious
+
+    interface_priority = 15
+    desc = cfa_call_same_faith_to_war_interaction_desc
+
+    common_interaction = yes
+    interface = call_ally
+    special_interaction = call_ally_interaction
+    popup_on_receive = yes
+    pause_on_receive = yes
+
+    notification_text = cfa_call_same_faith_to_war_interaction_notification
+
+    ai_maybe = yes
+    greeting = positive
+    cooldown_against_recipient = { years = 5 }
+    use_diplomatic_range = yes
+
+    is_shown = {
+        # actor condition
+        scope:actor = {
+            NOR = {
+                this = scope:recipient
+                is_at_war_with = scope:recipient # must not be at war with recipient
+                is_allied_to = scope:recipient
+            }
+            is_at_war_as_defender = yes
+            has_faith = scope:recipient.faith # eg: has_faith = faith:baltic_pagan
+        }
+        # recipient condition
+        scope:recipient = {
+            has_faith = scope:actor.faith
+        }
+        # war condition
+        scope:actor = {
+            any_character_war = {
+                using_holy_war_cb_trigger = yes # includes crusades
+                # using_non_ghw_holy_war_cb_trigger = yes # if without crusades
+                primary_defender = scope:actor
+                NOT = { is_defender = scope:recipient }
+            }
+        }
+    }
+
+    has_valid_target = {
+        exists = scope:target
+    }
+
+    has_valid_target_showing_failures_only = {
+        scope:target = {
+            is_war_leader = scope:actor
+
+            # Cannot contract against allies
+            trigger_if = {
+                limit = {
+                    any_war_attacker = { this = scope:recipient }
+                }
+                NOT = {
+                    any_war_defender = { is_allied_to = scope:actor }
+                }
+            }
+            trigger_else = {
+                NOT = {
+                    any_war_attacker = { is_allied_to = scope:actor }
+                }
+            }
+        }
+
+        # Adventurers can't join wars in places they're exiled from.
+        trigger_if = {
+            limit = {
+                scope:actor = { top_liege != this }
+            }
+            custom_tooltip = {
+                text = the_wake_1
+                NOT = {
+                    is_laamp_exiled_from_province_trigger = {
+                        PROVINCE = scope:actor.capital_province
+                        LAAMP = scope:recipient
+                    }
+                }
+            }
+        }
+    }
+
+    # defines, if the interaction can be selected from character interaction menu
+    is_valid_showing_failures_only = {
+        # Actor is not in (any) war against Recipient's liege(s)
+        trigger_if = {
+            limit = { exists = scope:recipient.liege }
+            custom_description = {
+                text = join_war_interaction_recipient_warring_with_my_liege
+                subject = scope:actor
+                scope:recipient = {
+                    NOT = {
+                        any_liege_or_above = { is_at_war_with = scope:actor }
+                    }
+                }
+            }
+        }
+
+        custom_tooltip = {
+            text = cfa_negative_piety
+
+            scope:actor = {
+                piety > 0
+            }
+        }
+
+        scope:actor = {
+            piety_level >= 1
+            NOT = {
+                has_trait = excommunicated
+            }
+        }
+        scope:recipient = {
+            NOT = { has_trait = excommunicated }
+        }
+
+        # Cannot join wars with raised armies
+        # todo do i want that?
+        # scope:recipient = { has_raised_armies = no }
+    }
+
+    # if i'm able to send the request
+    can_send = {
+        scope:actor = {
+            custom_description = { # Exploit prevention
+                text = "has_sent_interaction_already"
+                NOT = { has_pending_interaction_of_type = cfa_call_same_faith_to_war_interaction }
+            }
+        }
+    }
+
+    # defines, if the war can be selected from the war list
+    can_be_picked = {
+        # Recipient is war leader in chosen war
+        scope:target = {
+            # is_war_leader = scope:actor
+            # not already in target war
+            custom_description = {
+                # text = join_war_interaction_already_in_target_war
+                text = cfa_not_using_holy_war_cb
+                using_holy_war_cb_trigger = yes
+            }
+        }
+    }
+
+    on_accept = {
+        # So that we can show a tooltip in the event about them responding
+        # adds recipient to the current war
+        call_ally_interaction_effect = yes
+
+        # recipient effects
+        scope:recipient = {
+            stress_impact = {
+                craven = medium_stress_impact_gain
+                shy = minor_stress_impact_gain
+
+                cynical = medium_stress_impact_gain
+                zealous = medium_stress_impact_loss
+            }
+            add_piety = offer_assistance_interaction_piety_value
+            ordered_active_accolade = {
+                accolade_parameter = acclaimed_knight_piety_from_battle
+            }
+
+            # Struggle Catalyst
+            if = {
+                limit = {
+                    # Verify if vassal used to be independent
+                    any_character_struggle = {
+                        involvement = involved
+                        activate_struggle_catalyst_secondary_character_involvement_involved_trigger = {
+                            CATALYST = catalyst_join_war_as_assisant
+                            CHAR = scope:recipient
+                        }
+                    }
+                }
+                every_character_struggle = {
+                    involvement = involved
+                    limit = {
+                        activate_struggle_catalyst_secondary_character_involvement_involved_trigger = {
+                            CATALYST = catalyst_join_war_as_assisant
+                            CHAR = scope:recipient
+                        }
+                    }
+                    activate_struggle_catalyst = {
+                        catalyst = catalyst_join_war_as_assisant
+                        character = scope:recipient
+                    }
+                }
+            }
+        }
+        # actor effects
+        scope:actor = {
+            stress_impact = {
+                greedy = medium_stress_impact_gain
+                arrogant = medium_stress_impact_gain
+            }
+            add_piety = {
+                value = offer_assistance_interaction_piety_value
+                multiply = -1
+            }
+            trigger_event = call_ally.0100
+        }
+
+        # If we're a clan this interaction affects unity
+        add_clan_unity_interaction_effect = {
+            CHARACTER = scope:actor
+            TARGET = scope:recipient
+            VALUE = medium_unity_loss
+            DESC = clan_unity_request_assistance.desc
+            REVERSE_NON_HOUSE_TARGET = no
+        }
+    }
+
+    on_decline = {
+        scope:target = {
+            hidden_effect = {
+                if = {
+                    limit = {
+                        NOT = { was_called = scope:recipient }
+                    }
+                    set_called_to = scope:recipient
+                }
+            }
+        }
+
+        # Refusal notification
+        scope:actor = {
+            add_opinion = {
+                modifier = rejected_call_to_defensive_war
+                target = scope:recipient
+            }
+
+            trigger_event = char_interaction.0236 # todo
+            # trigger_event = call_ally.0101
+        }
+
+        scope:recipient = {
+            # add_piety = {
+            #     value = offer_assistance_interaction_piety_value
+            #     multiply = -1
+            # }
+            add_piety_level = -1
+        }
+
+        # If we're a clan this interaction affects unity
+        add_clan_unity_interaction_effect = {
+            CHARACTER = scope:recipient
+            TARGET = scope:actor
+            VALUE = minor_unity_gain
+            DESC = clan_unity_request_assistance_decline.desc
+            REVERSE_NON_HOUSE_TARGET = no
+        }
+    }
+
+    auto_accept = {
+        scope:recipient = {
+            has_trait = zealous
+        }
+    }
+
+    ai_accept = {
+        base = 25 # Reluctant to spend money without good reason
+
+        # Recipient has low cash
+        modifier = {
+            add = {
+                value = 25
+                if = {
+                    limit = {
+                        piety < 0
+                    }
+                    add = {
+                        value = 25
+                        multiply = debt_level
+                    }
+                }
+                if = { # Very generous or vengeful characters *will* make poor decisions
+                    limit = {
+                        OR = {
+                            ai_greed <= -50
+                            ai_vengefulness >= 50
+                        }
+                    }
+                    multiply = 0.5
+                }
+                if = {
+                    limit = {
+                        ai_greed <= 0.5
+                    }
+                    add = {
+                        value = ai_greed
+                        multiply = 0.2
+                    }
+                }
+            }
+            desc = CFA_AI_GAINS_PIETY_REASON
+        }
+        modifier = {
+            add = 50
+            has_trait = zealous
+            desc = AI_VALUE_MODIFIER_ZEAL
+        }
+        modifier = {
+            add = -50
+            has_trait = cynical
+            desc = AI_VALUE_MODIFIER_CYNICISM
+        }
+        # Recipient has a lot of piety
+        # todo: take zealot into consideration
+        modifier = {
+            add = {
+                value = -25
+                if = {
+                    limit = {
+                        piety >= {
+                            value = offer_assistance_interaction_piety_value
+                            multiply = 2
+                        }
+                    }
+                    add = -50
+                }
+                if = {
+                    limit = {
+                        piety >= {
+                            value = offer_assistance_interaction_piety_value
+                            multiply = 3
+                        }
+                    }
+                    add = -50
+                }
+            }
+            piety >= offer_assistance_interaction_piety_value
+            desc = CFA_OA_AI_EXTRA_PIETY_REASON # todo: reason to decline?
+        }
+        # Recipient is not interested in help for certain wars
+        modifier = {
+            add = -500
+            exists = scope:target
+            scope:target = {
+                OR = {
+                    using_cb = peasant_war
+                    using_cb = fp2_border_raid
+                }
+            }
+            desc = OA_AI_UNINTERESTED_WAR_REASON
+        }
+        modifier = {
+            add = {
+                value = scope:actor.martial
+                multiply = 2
+            }
+            scope:actor = { martial >= 12 }
+            desc = OA_AI_MARTIAL_REASON
+        }
+        modifier = {
+            add = -50
+            scope:recipient = { has_character_flag = fp2_contract_assistance_failure }
+            desc = OA_AI_FAILURE_REASON
+        }
+        # Opinion Factor
+        opinion_modifier = {
+            who = scope:recipient
+            opinion_target = scope:actor
+            multiplier = 0.25
+            desc = AI_OPINION_REASON
+        }
+        modifier = {
+            add = {
+                value = ai_boldness
+                multiply = 0.2
+            }
+            NOT = { ai_boldness = 0 }
+            desc = AI_VALUE_MODIFIER_BOLDNESS
+        }
+
+        # Allegiances
+        fp2_contracting_ally_modifier = {
+            WARMONGER = scope:actor
+            WARJOINER = scope:recipient
+        }
+    }
+
+    ai_potential = {
+        # the AI cannot use it for now so let's block it
+        is_imprisoned = no
+        is_at_war = no
+        piety >= cfa_claim_piety_value
+    }
+    ai_target_quick_trigger = { adult = yes }
+    ai_targets = {
+        ai_recipients = neighboring_rulers
+    }
+
+    ai_set_target = {
+        scope:actor = {
+            ordered_character_war = { #We offer our services for the war where the character is losing the most
+                limit = {
+                    is_war_leader = prev
+                    NOR = {
+                        any_war_attacker = { this = scope:recipient }
+                        any_war_defender = { this = scope:recipient }
+                    }
+                    save_temporary_scope_as = target
+                    can_join_war_liege_vassal_check_trigger = { WARRIOR = scope:actor JOINER = scope:recipient }
+                }
+                order_by = {
+                    value = 0
+                    add = {
+                        if = {
+                            limit = { any_war_attacker = { this = scope:actor } }
+                            subtract = attacker_war_score
+                        }
+                        else = {
+                            subtract = defender_war_score
+                        }
+                    }
+                }
+                save_scope_as = target
+            }
+        }
+    }
+
+    ai_targets = {
+        ai_recipients = peer_vassals
+    }
+    ai_frequency_by_tier = {
+        barony = 0
+        county = 48
+        duchy = 36
+        kingdom = 36
+        empire = 36
+        hegemony = 0
+    }
+
+    ai_will_do = {
+        base = 0
+
+        modifier = { # AI is losing the war
+            trigger_if = {
+                limit = { exists = scope:target }
+                scope:target = {
+                    trigger_if = {
+                        limit = {
+                            scope:actor = { is_attacker_in_war = prev }
+                        }
+                        defender_war_score >= offer_assistance_interaction_already_losing_value
+                    }
+                    trigger_else = { attacker_war_score >= offer_assistance_interaction_already_losing_value }
+                }
+            }
+            add = 15
+        }
+
+        modifier = { # Increase chance for asking family
+            scope:recipient = {
+                OR = {
+                    dynasty = scope:actor.dynasty
+                    is_consort_of = scope:actor
+                }
+            }
+            factor = 2
+        }
+
+        modifier = { # Decrease chance if army is small
+            trigger_if = {
+                limit = { exists = scope:target }
+                scope:target = {
+                    trigger_if = {
+                        limit = {
+                            scope:recipient = { is_attacker_in_war = prev }
+                        }
+                        scope:actor.max_military_strength < war_defender_total_strength_tenth_value
+                    }
+                    trigger_else = { scope:actor.max_military_strength < war_attacker_total_strength_tenth_value }
+                }
+            }
+            add = -50
+        }
+
+        modifier = { # Increase chance for rivalry
+            trigger_if = {
+                limit = { exists = scope:target }
+                scope:target = {
+                    any_war_participant = {
+                        is_leader_in_war = scope:target
+                        this != scope:actor
+                        has_relation_rival = scope:recipient
+                    }
+                }
+            }
+            add = 25
+        }
+
+        modifier = { # AI is extremely rich
+            piety >= cfa_claim_piety_value
+            add = 50
+        }
+    }
+}
